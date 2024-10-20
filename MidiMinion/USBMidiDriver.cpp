@@ -8,11 +8,13 @@
 
 //**********  Functions working with Parent class ***********
 bool USBMidiDriver::claim(Device_t* dev, int type, const uint8_t* descriptors, uint32_t len) {
-	
+
 	// If the base driver claimed the device <returns true>, it's a midi interface
 	// We want to then kick off the process of gathering info on the device
 	// queue a request for the device descriptor ... which will callback our control() func.
 	if ( MIDIDevice::claim(dev, type, descriptors, len) ) {
+		xDBG::println("USBMidiDriver - Base Claimed Device.");
+		init();
 		requestDeviceDescriptor(dev);
 		return true;
 	}
@@ -29,11 +31,14 @@ void USBMidiDriver::control(const Transfer_t* transfer) {
 	switch (findControlCallbackType(transfer)) {
 
 	case USBMidiDriver::DEVICE: {
+		xDBG::println("USBMidiDriver - Recieved Device Request.");
 		requestConfigDescriptor(transfer->pipe->device, USBDefs::DESCRIPTOR_LENGTH::CONFIG);
 		return;
 	}
 
 	case USBMidiDriver::CONFIG_HEADER: {
+		xDBG::println("USBMidiDriver - Recieved Config Header.");
+
 		const USBDefs::ConfigStruct* configDescriptor = (USBDefs::ConfigStruct*)(&(myData->configDescriptorBuff[0]));
 		uint16_t configTotalLength = configDescriptor->bTotalLengthMSB << 8 | configDescriptor->bTotalLengthLSB;
 		const uint16_t buffSz = sizeof(myData->configDescriptorBuff) / sizeof(myData->configDescriptorBuff[0]);
@@ -52,6 +57,8 @@ void USBMidiDriver::control(const Transfer_t* transfer) {
 	}
 
 	case USBMidiDriver::CONFIG_FULL: {
+		xDBG::println("USBMidiDriver - Recieved Config Full Data.");
+
 		DescriptorHelper::parseConfigData(myData);
 		DescriptorHelper::buildStackOfStringsToProcess(myData);
 
@@ -63,6 +70,8 @@ void USBMidiDriver::control(const Transfer_t* transfer) {
 	case USBMidiDriver::STRING: {
 		USBDefs::StringStruct* stringDescriptor = (USBDefs::StringStruct*)(&(myData->stringDescriptorBuff[0]));
 		const uint8_t requestedStringIndex = transfer->setup.wValue & 0x00FF;  //This is the string index we requested
+
+		xDBG::println("USBMidiDriver - Recieved String #",requestedStringIndex);
 
 		if (stringDescriptor->header.bDescriptorType != USBDefs::USB_DESCRIPTOR_TYPE::STRING) {
 			xERR::println("ERROR - String Descriptor type is not correct.  Should be 3 is=", stringDescriptor->header.bDescriptorType);
@@ -195,132 +204,22 @@ bool USBMidiDriver::moreStringsToRequest(Device_t* dev) {
 }
 void USBMidiDriver::fireEvent(Defs::DeviceEventType event) {
 	switch (event) {
-	case Defs::DeviceEventType::DeviceConnect: { myData->deviceReady = true;	break; }
-	case Defs::DeviceEventType::DeviceDisconnect: { MIDIDevice::disconnect(); init(); break; }
+	case Defs::DeviceEventType::DeviceConnect: { 
+		myData->deviceInfoSummary.deviceReady = true;
+		xDBG::println("Device Connected");
+		if(PrintClassDEBUG) myData->dumpDeviceInfoSummary();
+		break; 
+	}
+	case Defs::DeviceEventType::DeviceDisconnect: { 
+		MIDIDevice::disconnect(); 
+		myData->deviceInfoSummary.deviceReady = false; 
+		xDBG::println("Device Disconnected - ", (const char*)(myData->deviceInfoSummary.iStrings[myData->deviceInfoSummary.productStringIndex]));
+		break; 
+	}
 	default: {}
 	}
 	DeviceManager::USBMidiDriverNotifications(this, event);
 }
-
-//   -------- OLD VERSION of control -----------
-//	Device_t* dev = transfer->pipe->device;
-//	USBDefs::USB_DESCRIPTOR_TYPE requestedDescriptorType = (USBDefs::USB_DESCRIPTOR_TYPE) (transfer->setup.wValue >>8);
-//	const uint16_t requestedLength = transfer->setup.wLength;
-//
-//	//The switch figures out what request we made ... to process the response
-//	switch (requestedDescriptorType) {
-//
-//		case USBDefs::USB_DESCRIPTOR_TYPE::DEVICE:
-//	{
-//			USBDefs::DeviceStruct* deviceDescriptor = (USBDefs::DeviceStruct*)(&deviceDescriptorBuff[0]);
-//			
-//			if (deviceDescriptor->header.bDescriptorType != USBDefs::USB_DESCRIPTOR_TYPE::DEVICE) {
-//				xERR::println("ERROR - Device Descriptor type is not correct.  Should be 1 is=", deviceDescriptor->header.bDescriptorType);
-//				return;
-//			}
-//
-//			//  request and wait for callback with CONFIG descriptor
-//			requestConfigDescriptor(dev);
-//			return; 
-//
-//		} // end case device descriptor
-//
-//
-//		case USBDefs::USB_DESCRIPTOR_TYPE::CONFIGURATION: {
-//			const USBDefs::ConfigStruct* configDescriptor = (USBDefs::ConfigStruct *) (&configDescriptorBuff[0]);
-//
-//			if (configDescriptor->header.bDescriptorType != USBDefs::USB_DESCRIPTOR_TYPE::CONFIGURATION) {
-//				xERR::println("ERROR - Config Descriptor type is not correct.  Should be 2 is=", configDescriptor->header.bDescriptorType);
-//				xERR::print_hexbytes(&configDescriptorBuff[0], 9);
-//				return;
-//			}
-//
-//			// We request config 2x.  1st just config data (fixed length of 9) to get totallength value. 2nd totalLength of data
-//			// Figure out based on lengths requested ... how to process the config request
-//			enum configRequestType : uint8_t { JUSTDescriptor, AllConfigData, Error};
-//			configRequestType configLengthRequested = configRequestType::Error;
-//
-//			if (requestedLength == configDescriptor->header.bLength) configLengthRequested = configRequestType::JUSTDescriptor;
-//			if (requestedLength > configDescriptor->header.bLength) configLengthRequested = configRequestType::AllConfigData;
-//
-//			switch(configLengthRequested) {
-//			
-//				case configRequestType::JUSTDescriptor: {
-//					// Make the setup packet to request the full configuration ... we only have the 1st 9 bytes so far
-//
-//					// Going to get the full configuration ... or as much as fits in our buffer
-//					uint16_t configTotalLength = configDescriptor->bTotalLengthMSB << 8 | configDescriptor->bTotalLengthLSB;
-//					const uint16_t buffLeft = sizeof(configDescriptorBuff);
-//					if (configTotalLength > buffLeft) { configTotalLength = buffLeft; }
-//
-//					if (configTotalLength <= configDescriptor->header.bLength) {
-//						xERR::println("ERROR Config has no interface.  TotalLength=", configTotalLength);
-//						return;
-//					}
-//
-//					//  request and wait for callback with FULL data
-//					requestConfigData(dev, configTotalLength);
-//					return; 
-//				} // end case we requested just the config descriptor
-//
-//				case configRequestType::AllConfigData: {
-//					// Full data is now in the buffer ... so parse it
-//					descriptorHelper.parseConfigData();
-//
-//					// Start Process of requesting the string descriptors ...
-//					uint8_t stringIndex = descriptorHelper.nextStringToRequest();
-//					if (stringIndex == 0) {
-//						setDeviceReady();
-//					}
-//					else {
-//						requestStringDescriptor(dev, stringIndex);
-//					}
-//
-//					return; 
-//				} // end case all config data
-//
-//				default: {
-//					xERR::println("ERROR - Something is wrong with Config request. Length requested was: ", requestedLength);
-//					return;
-//				}
-//
-//			} // end switch configLengthRequested
-//		} // end case ... config requests
-//
-//
-//		case USBDefs::USB_DESCRIPTOR_TYPE::STRING:
-//		{
-//			USBDefs::StringStruct* stringDescriptor = (USBDefs::StringStruct*)(&stringDescriptorBuff[0]);
-//			const uint8_t requestedStringIndex = transfer->setup.wValue & 0x00FF;  //This is the string index we requested
-//
-//
-//			if (stringDescriptor->header.bDescriptorType != USBDefs::USB_DESCRIPTOR_TYPE::STRING) {
-//				xERR::println("ERROR - String Descriptor type is not correct.  Should be 3 is=", stringDescriptor->header.bDescriptorType);
-//				//return; << weird error (didn't get type we requested) but allow next request?
-//			}
-//			else {
-//				descriptorHelper.saveStringDescriptor(requestedStringIndex);
-//			}
-//
-//			//  request next string and wait for callback with next descriptor
-//			uint8_t nextStringIndex = descriptorHelper.nextStringToRequest();
-//			if (nextStringIndex == 0) {
-//				setDeviceReady();
-//			}
-//			else {
-//				requestStringDescriptor(dev, nextStringIndex);
-//			}
-//
-//			return;
-//
-//		} // end case string descriptor
-//
-//
-//		default: // Error we got called on a request type we don't handle ?
-//			return;
-//	} // end switch on requested type
-//}
-
 
 //---------------  USBMidiDriver    CLASS END ------------------
 
@@ -349,9 +248,6 @@ void DescriptorHelper::parseConfigData(DataStorage::USBMidiDriverData* data) {
 		xERR::print_hexbytes(cdPtr, 9);
 		return;
 	}
-
-	//Clear everthing out if we are going to parse
-	data->init();
 
 	//No need to parse the deviceBuffer
 	data->descriptorArray[0].dataPtr = ddPtr;
@@ -401,8 +297,6 @@ void DescriptorHelper::parseConfigData(DataStorage::USBMidiDriverData* data) {
 		}
 
 	} // end loop
-
-
 
 } // end function
 Defs::USBDescriptorStructType DescriptorHelper::getDescriptorStructType(USBDefs::UnknownStruct* ukD

@@ -262,6 +262,8 @@ public:
     static void println(const char* s, unsigned int n, uint8_t b = DEC) {DBGSerial.print(s); DBGSerial.println(n, b);}
     static void println(const char* s, long n, uint8_t b = DEC) {DBGSerial.print(s); DBGSerial.println(n, b);}
     static void println(const char* s, unsigned long n, uint8_t b = DEC) {DBGSerial.print(s); DBGSerial.println(n, b);}
+	static void println(const char* s, const char* s2) { DBGSerial.print(s); DBGSerial.println(s2); }
+
 
 	static void println(const char* s, USBDefs::USB_DESCRIPTOR_TYPE n, uint8_t b = DEC) { DBGSerial.print(s); DBGSerial.println((uint8_t) n, b); }
 	static void println(const char* s, USBDefs::MIDISTREAMING_INTERFACE_DESCRIPTOR_SUBTYPE n, uint8_t b = DEC) { DBGSerial.print(s); DBGSerial.println((uint8_t)n, b); }

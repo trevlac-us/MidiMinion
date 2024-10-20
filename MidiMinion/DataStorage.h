@@ -64,6 +64,7 @@ class DataStorage {
 						}
 			};
 			Defs::DeviceInfoSummary_t deviceInfoSummary{
+				 .deviceReady = false,
 				// Device Stuff
 				 .USBvendorID = 0,
 				 .USBMajorVersion = 0,
@@ -99,13 +100,13 @@ class DataStorage {
 			};
 		// ---- Summary of Device Descriptors for External Viewing END -----------
 
-		bool deviceReady = false;
+		
 	//---------------  USBMidiDriver    -------  DATA STOARGE END ------------
 
 
 		void init() {
 
-			deviceReady = false;
+			deviceInfoSummary.deviceReady = false;
 
 			// Clear buffers
 			memset(deviceDescriptorBuff, 0, sizeof(deviceDescriptorBuff));
@@ -205,9 +206,19 @@ class DataStorage {
 
 
 		}// end function dumpDescriptors
+		void dumpDeviceInfoSummary() {
+			Defs::DeviceInfoSummary_t* deviceInfoSum = getDeviceSummaryInfo();
+			if (deviceInfoSum == nullptr) {
+				xERR::println("ERROR - Device Info Summary is empty");
+			}
+			else {
+				xDBG::printDeviceInfoSummary(deviceInfoSum);
+			}
+			return;
+		}
 		
 		Defs::DeviceInfoSummary_t* getDeviceSummaryInfo() {
-			if (deviceReady) {
+			if (deviceInfoSummary.deviceReady) {
 				if (deviceInfoSummary.USBvendorID == 0) { buildDeviceSummaryInfo(); }
 				return &deviceInfoSummary;
 			}

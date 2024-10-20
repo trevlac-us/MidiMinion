@@ -10,7 +10,7 @@ class DeviceManager;					//-- ptr for connect/disconnect callback
 class USBMidiDriver : public MIDIDevice {
 
 // Use xDBG::print() for debug prints in a class
-private: static const bool PrintClassDEBUG = true;
+private: static const bool PrintClassDEBUG = false;
 private: static const bool PrintClassERROR = true;
 
 //---------------  USBMidiDriver    -------  DATA STOARGE START ------------
@@ -21,14 +21,18 @@ private:
 	DataStorage::USBMidiDriverData* myData;
 
 public: 
-	USBMidiDriver(DataStorage::USBMidiDriverData* data) : MIDIDevice(*(static_cast<USBHost*>(this))) , myData(data) { init(); };
-	bool deviceIsReady() const { return myData->deviceReady; }
+	USBMidiDriver(DataStorage::USBMidiDriverData* data) : MIDIDevice(*(static_cast<USBHost*>(this))) , myData(data) {};
+	bool deviceIsReady() const { return myData->deviceInfoSummary.deviceReady; }
 
 // Parent "USBHost_t36::MIDIDevice" methods we are using ... 
 protected:
 	virtual bool claim(Device_t* dev, int type, const uint8_t* descriptors, uint32_t len);
 	virtual void control(const Transfer_t* transfer);
 	virtual void disconnect();
+	void init() { 
+		xDBG::println("MidiDriver Init");
+		myData->init();
+	}
 
 
 private:
@@ -49,7 +53,7 @@ class DescriptorHelper {
 private:
 
 	// Use xDBG::print() for debug prints in a class
-	static const bool PrintClassDEBUG = true;
+	static const bool PrintClassDEBUG = false;
 	static const bool PrintClassERROR = true;
 
 	static Defs::USBDescriptorStructType getDescriptorStructType(USBDefs::UnknownStruct* ukD

@@ -44,7 +44,7 @@ void loop() {
             default: break;
         }
     
-        // always remove the msg to not stall the Q
+        // ALWAYS remove the msg to not stall the Q
         if (DeviceMessageQueue::getNextMsgType() != Defs::DeviceEventType::EmptyQueue) {
             DeviceMessageQueue::remove(); 
         }
@@ -65,7 +65,7 @@ void loop() {
 
 
 
-// -----------  MidiMinion FUNCTIONS -----------
+// -----------  MidiMinion FUNCTIONS for Processing Modes -----------
 
 void MidiMinion::starting() {
     DeviceManager::begin();

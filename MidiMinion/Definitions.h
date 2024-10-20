@@ -23,6 +23,7 @@ namespace Defs {
 		uint8_t externalJackiString;
 	} EndpointJackMap_t;
 	typedef struct DeviceInfoSummary_struct {
+		bool deviceReady;
 		// Device Stuff
 		uint16_t USBvendorID;
 		uint8_t USBMajorVersion;
