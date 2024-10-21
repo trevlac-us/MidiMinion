@@ -7,7 +7,7 @@ namespace Defs {
 
 
 	// --- MIDI MESSAGE ----------------
-	typedef struct MidiMessage_struct {
+	typedef struct MidiMessageData_struct {
 		uint8_t type;
 		uint8_t cable;
 		uint8_t channel;
@@ -69,17 +69,20 @@ namespace Defs {
 		, MS_Endpoint_In, MS_Endpoint_Out
 	};
 
-	//types of notifications to the deviceManager
-	//enum class NotificationType { DeviceConnect, DeviceDisconnect };
-
 
 	// ---- DeviceManager ---
 
-	enum class DeviceEventType { ERROR, EmptyQueue, DeviceConnect, DeviceDisconnect, MidiMessage };
+	enum class DeviceEventType { ERROR, EmptyQueue, DeviceConnect, DeviceDisconnect };
 	enum class DeviceNumber { ERROR, USB1, USB2, USB3, USB4, MIDI1 };
 
-	typedef struct DeviceMessage_struct { Defs::DeviceNumber deviceNumber; Defs::DeviceEventType eventType; Defs::MidiMessageData midiMsg; } DeviceMessage;
 
+	typedef struct DeviceEvent_struct { Defs::DeviceNumber deviceNumber; Defs::DeviceEventType eventType; void* dataPtr; } DeviceEvent;
+	typedef struct MidiMessage_struct { Defs::DeviceNumber deviceNumber; Defs::MidiMessageData midiMsg; } MidiMessage;
+
+	// ---- UIMessageQueue ---
+
+	enum class UIMessageType { ERROR, EmptyQueue, DeviceConnect, DeviceDisconnect };
+	typedef struct UIMessage_struct { Defs::UIMessageType msgType; void* dataPtr; } UIMessage;
 
 };
 

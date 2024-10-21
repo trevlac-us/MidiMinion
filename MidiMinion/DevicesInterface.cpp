@@ -20,28 +20,31 @@ void DeviceManager::task() {
 }
 void DeviceManager::readMidiMessages() {
 
+	uint8_t const READLOOP = 4;
+
 	// look for midi messages and add them to the queue
-	if (usbMidiDevice1.read()) {
-		DeviceMessageQueue::add(Defs::DeviceNumber::USB1, Defs::DeviceEventType::MidiMessage, usbMidiDevice1.getType(), usbMidiDevice1.getCable()
+	uint8_t cnt = 0;
+	while (usbMidiDevice1.read() && (cnt < READLOOP) ) {
+		MidiMsgQueue::add(Defs::DeviceNumber::USB1, usbMidiDevice1.getType(), usbMidiDevice1.getCable()
 			, usbMidiDevice1.getChannel(), usbMidiDevice1.getData1(), usbMidiDevice1.getData2());
+		cnt++;
 	}
 }
 void DeviceManager::USBMidiDriverNotifications(USBMidiDriver* caller, Defs::DeviceEventType notificationType) {
 	
 	Defs::DeviceNumber deviceNumber = Defs::DeviceNumber::ERROR;
-	//uint8_t midiType = 0;
-	//uint8_t midiCable = 0;
-	//uint8_t midiChannel = 0;
-	//uint8_t midiData1 = 0;
-	//uint8_t midiData2 = 0;
+	DataStorage::USBMidiDriverData* dataPtr;
 
-	if (caller == &usbMidiDevice1) {deviceNumber = Defs::DeviceNumber::USB1;}
+	if (caller == &usbMidiDevice1) {
+		deviceNumber = Defs::DeviceNumber::USB1; 
+		dataPtr = &usbMidiDevice1Data;
+	}
 	//if (caller == &usbMidiDevice2) { deviceNumber = DeviceNumber::USB2; }
 	//if (caller == &usbMidiDevice3) { deviceNumber = DeviceNumber::USB3; }
 	//if (caller == &usbMidiDevice4) { deviceNumber = DeviceNumber::USB4; }
 	//if (caller == &midiDevice1) { deviceNumber = DeviceNumber::MIDI1; }
 
-	DeviceMessageQueue::add( deviceNumber, notificationType);
+	DeviceEventQueue::add( deviceNumber, notificationType, dataPtr);
 
 
 }
@@ -62,7 +65,7 @@ bool DeviceManager::aDeviceIsReady() {
 	//if (usbMidiDevice3.deviceIsReady()) { rtn++; }
 	//if (usbMidiDevice4.deviceIsReady()) { rtn++; }
 	//if (MidiDevice1.deviceIsReady()) { rtn++; }
-
+	return false;
 }
 
 //---------------  Device Manager   END  -----------
@@ -70,18 +73,67 @@ bool DeviceManager::aDeviceIsReady() {
 
 
 
-//---------------  Device Message Queue  -----------------
+//---------------  Device Event Queue  -----------------
 
-bool DeviceMessageQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type
-	, uint8_t msgType, uint8_t msgCable, uint8_t msgChannel, uint8_t msgData1, uint8_t msgData2) {
+bool DeviceEventQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, void* dataPtr) {
 	bool rtn = false;
 	__disable_irq();
 
-
 	if (Qsize < storageSize) {
-
 		queueStorage[nextOpenSpot].deviceNumber = deviceNumber;
 		queueStorage[nextOpenSpot].eventType = type;
+		queueStorage[nextOpenSpot].dataPtr = dataPtr;
+
+
+		//move to next spot ... loop around to [0] if we are at end of storage
+		nextOpenSpot = (nextOpenSpot + 1 >= storageSize) ? 0 : nextOpenSpot + 1;
+
+		//up que size ... if its full nextOpen will be next in Q's "chair"
+		Qsize++;
+		if (Qsize >= storageSize) {
+			nextOpenSpot = nextInQ;
+			Qsize = storageSize; // just in case Qsize got bigger ?
+		}
+		rtn = true;
+	}
+	__enable_irq();
+	return rtn;
+}
+
+bool DeviceEventQueue::remove() {
+	bool rtn = false;
+	__disable_irq();
+	if (Qsize > 0) {
+		Qsize--;
+		//bump up nextInQ ... loop around to 0 if at end of storage
+		nextInQ = (nextInQ + 1 == storageSize) ? 0 : nextInQ + 1;
+		rtn = true;
+	}
+	__enable_irq();
+	return rtn;
+}
+bool DeviceEventQueue::hasMoreWork() {
+	if (Qsize <= 0 || countUntilYield <= 0) { countUntilYield = processBeforeYield; return false; }
+
+	countUntilYield--;
+	return true;
+}
+
+Defs::DeviceEventType DeviceEventQueue::getNextEventType() { return (!(Qsize)) ? Defs::DeviceEventType::EmptyQueue : queueStorage[nextInQ].eventType; }
+Defs::DeviceNumber DeviceEventQueue::getNextEventDeviceNum() { return (!(Qsize)) ? Defs::DeviceNumber::ERROR : queueStorage[nextInQ].deviceNumber; }
+void* DeviceEventQueue::getNextEventDataPtr() { return (!(Qsize)) ? nullptr : queueStorage[nextInQ].dataPtr; }
+
+//---------------  Device Event Queue END  -----------
+
+
+//---------------  Midi Message Queue  -----------------
+
+bool MidiMsgQueue::add(Defs::DeviceNumber deviceNumber
+	, uint8_t msgType, uint8_t msgCable, uint8_t msgChannel, uint8_t msgData1, uint8_t msgData2) {
+	bool rtn = false;
+
+	if (Qsize < storageSize) {
+		queueStorage[nextOpenSpot].deviceNumber = deviceNumber;
 		queueStorage[nextOpenSpot].midiMsg.type = msgType;
 		queueStorage[nextOpenSpot].midiMsg.cable = msgCable;
 		queueStorage[nextOpenSpot].midiMsg.channel = msgChannel;
@@ -100,30 +152,27 @@ bool DeviceMessageQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventT
 		}
 		rtn = true;
 	}
-	__enable_irq();
 	return rtn;
 }
-bool DeviceMessageQueue::remove() {
+
+bool MidiMsgQueue::remove() {
 	bool rtn = false;
-	__disable_irq();
 	if (Qsize > 0) {
 		Qsize--;
 		//bump up nextInQ ... loop around to 0 if at end of storage
 		nextInQ = (nextInQ + 1 == storageSize) ? 0 : nextInQ + 1;
 		rtn = true;
 	}
-	__enable_irq();
 	return rtn;
 }
-bool DeviceMessageQueue::hasMoreWork() {
+bool MidiMsgQueue::hasMoreWork() {
 	if (Qsize <= 0 || countUntilYield <= 0) { countUntilYield = processBeforeYield; return false; }
 
 	countUntilYield--;
 	return true;
 }
 
-Defs::DeviceEventType DeviceMessageQueue::getNextMsgType() { return (!(Qsize)) ? Defs::DeviceEventType::EmptyQueue : queueStorage[nextInQ].eventType; }
-Defs::DeviceNumber DeviceMessageQueue::getNextMsgDeviceNum() { return (!(Qsize)) ? Defs::DeviceNumber::ERROR : queueStorage[nextInQ].deviceNumber; }
-Defs::MidiMessageData* DeviceMessageQueue::getNextMsgMidiData() { return (!(Qsize)) ? nullptr : &(queueStorage[nextInQ].midiMsg); }
+Defs::DeviceNumber MidiMsgQueue::getNextMsgDeviceNum() { return (!(Qsize)) ? Defs::DeviceNumber::ERROR : queueStorage[nextInQ].deviceNumber; }
+Defs::MidiMessageData* MidiMsgQueue::getNextMsgMidiData() { return (!(Qsize)) ? nullptr : &(queueStorage[nextInQ].midiMsg); }
 
-//---------------  Device Message Queue END  -----------
+//---------------  Device Event Queue END  -----------

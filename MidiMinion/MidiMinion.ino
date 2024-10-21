@@ -1,3 +1,4 @@
+#include "UserInterface.h"
 #include "DataStorage.h"
 #include "DBG.h"
 #include "DevicesInterface.h"
@@ -10,12 +11,15 @@ public:
     static const bool PrintClassDEBUG = true;
     static const bool PrintClassERROR = true;
 
-    // - Processing States
-    enum class MODE : uint8_t { Starting, Connected, Disconnected, ReadMidiMessages };
+    // - States
+    enum class DEVICEMODE : uint8_t { Starting, Connected, Disconnected };
+    enum class PROCESSMODE : uint8_t { Off, Reading, Routing, Writing };
 
 
     // --- MODE Processing Stuff ----
-    static inline MODE mode = MODE::Starting;
+    static inline DEVICEMODE deviceMode = DEVICEMODE::Starting;
+    static inline PROCESSMODE processMode = PROCESSMODE::Off;
+
     static void starting();
     static void disconnected();
     static void connected();
@@ -29,35 +33,41 @@ public:
 void setup() { delay(100); }
 void loop() {
 
-    // ************ PROCESS DEVICES  ****************
-
-        switch (MidiMinion::mode) {
-            case MidiMinion::MODE::Starting: { MidiMinion::starting(); break; }
-            case MidiMinion::MODE::Disconnected: { MidiMinion::disconnected();  break; }
-            case MidiMinion::MODE::Connected: { MidiMinion::connected(); break; }
-            case MidiMinion::MODE::ReadMidiMessages: {
+    // ************ PROCESS DEVICE EVENTS  ****************
+        switch (MidiMinion::deviceMode) {
+            case MidiMinion::DEVICEMODE::Starting: { MidiMinion::starting(); break; }
+            case MidiMinion::DEVICEMODE::Disconnected: { MidiMinion::disconnected();  break; }
+            case MidiMinion::DEVICEMODE::Connected: { 
+                MidiMinion::connected(); 
                 DeviceManager::readMidiMessages();
-                    // process any messages in the queue
-
-                    break;
-                }// ReadMidi Mode
+                break; 
+            }
             default: break;
         }
     
         // ALWAYS remove the msg to not stall the Q
-        if (DeviceMessageQueue::getNextMsgType() != Defs::DeviceEventType::EmptyQueue) {
-            DeviceMessageQueue::remove(); 
-        }
+        if (DeviceEventQueue::getNextEventType() != Defs::DeviceEventType::EmptyQueue) {DeviceEventQueue::remove(); }
 
         DeviceManager::task(); // -- Not sure devices use this
 
         // --- Give DeviceQ Priority and loop again
-        if (DeviceMessageQueue::hasMoreWork()) return;
+        if (DeviceEventQueue::hasMoreWork()) return;
+    // ***** End PROCESS DEVICE EVENTS ***********************
 
-    // ***** End Process DeviceMsgQ ***********************
+
+
+    // ************ PROCESS MIDI MESSAGE  ****************
+        while(MidiMsgQueue::hasMoreWork()) { 
+
+            //TODO:  Run Transformers which load UI Q
+            //    { Off, Reading, Routing, Writing };
+
+            MidiMsgQueue::remove(); 
+        }
+    // ********** END PROCESS MIDI MESSAGE  **************
 
     
-    
+
     // TODO:  Process UI Messages
 
 
@@ -65,7 +75,7 @@ void loop() {
 
 
 
-// -----------  MidiMinion FUNCTIONS for Processing Modes -----------
+// -----------  MidiMinion FUNCTIONS for Processing Device Modes -----------
 
 void MidiMinion::starting() {
     DeviceManager::begin();
@@ -73,21 +83,21 @@ void MidiMinion::starting() {
     // are devices ready in at startup ?  Probably not USB ones yet ...
 
     if (DeviceManager::aDeviceIsReady() ) { 
-        MidiMinion::mode = MidiMinion::MODE::Connected; 
+        MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Connected; 
     }
     else { 
-        MidiMinion::mode = MidiMinion::MODE::Disconnected; 
+        MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Disconnected; 
     }
 }
 void MidiMinion::disconnected() {
-    switch (DeviceMessageQueue::getNextMsgType())
+    switch (DeviceEventQueue::getNextEventType())
     {
         case Defs::DeviceEventType::EmptyQueue: { break; }
-        case Defs::DeviceEventType::MidiMessage: { break; }
 
         case Defs::DeviceEventType::DeviceConnect: {
-            // TODO: tell UIout to process
-            MidiMinion::mode = MidiMinion::MODE::Connected;
+            // Add msg to UI Q ...change mode
+            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, DeviceEventQueue::getNextEventDataPtr());
+            MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Connected;
             break;
         }
         case Defs::DeviceEventType::DeviceDisconnect: {
@@ -105,24 +115,23 @@ void MidiMinion::disconnected() {
     }
 }
 void MidiMinion::connected() {
-    switch (DeviceMessageQueue::getNextMsgType())
+    switch (DeviceEventQueue::getNextEventType())
     {
         case Defs::DeviceEventType::EmptyQueue: { break; }
-        case Defs::DeviceEventType::MidiMessage: {
-            // TODO: handle these
-            break;
-        }
+
         case Defs::DeviceEventType::DeviceDisconnect: {
-            // TODO: tell UIout to process
+            UIMessageQueue::add(Defs::UIMessageType::DeviceDisconnect, DeviceEventQueue::getNextEventDataPtr());
             if (!DeviceManager::aDeviceIsReady()) {
-                MidiMinion::mode = MidiMinion::MODE::Disconnected;
+                MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Disconnected;
             }
             break;
         }
+
         case Defs::DeviceEventType::DeviceConnect: {
-            // TODO: tell UIout to process
+            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, DeviceEventQueue::getNextEventDataPtr());
             break;
         }
+
         case Defs::DeviceEventType::ERROR: {
             xERRS(MidiMinion)::println("ERROR - Got an ERROR Event type in main loop ?");
             break;

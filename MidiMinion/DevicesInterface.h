@@ -5,10 +5,10 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 #include "DataStorage.h"
 
 
-	//---------------  DeviceMessageQueue     ------------
-	class DeviceMessageQueue {
+	//---------------  DeviceEventQueue     ------------
+	class DeviceEventQueue {
 	private:
-		static inline Defs::DeviceMessage queueStorage[10]={};
+		static inline Defs::DeviceEvent queueStorage[10]={};
 		static const uint8_t storageSize = sizeof(queueStorage) / sizeof(queueStorage[0]);
 		static inline volatile uint8_t Qsize = 0;
 		static inline volatile uint8_t nextInQ = 0;
@@ -17,16 +17,41 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 		static inline volatile uint8_t countUntilYield = processBeforeYield;
 
 	public:
-		static bool add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type
-			, uint8_t msgType = 0, uint8_t msgCable = 0, uint8_t msgChannel = 0, uint8_t msgData1 = 0, uint8_t msgData2 = 0);
+		static bool add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, void* dataPtr);
+
 		static bool remove();
 		static bool hasMoreWork();
 
-		static Defs::DeviceEventType getNextMsgType();
+		static Defs::DeviceEventType getNextEventType();
+		static Defs::DeviceNumber getNextEventDeviceNum();
+		static void* getNextEventDataPtr();
+	};
+	//---------------  DeviceEventQueue    -------  END CLASS ------------
+
+
+	//---------------  MidiMsgQueue     ------------
+	class MidiMsgQueue {
+	private:
+		static inline Defs::MidiMessage queueStorage[20] = {};
+		static const uint8_t storageSize = sizeof(queueStorage) / sizeof(queueStorage[0]);
+		static inline volatile uint8_t Qsize = 0;
+		static inline volatile uint8_t nextInQ = 0;
+		static inline volatile uint8_t nextOpenSpot = 0;
+		static inline const uint8_t processBeforeYield = 10;
+		static inline volatile uint8_t countUntilYield = processBeforeYield;
+
+	public:
+		static bool add(Defs::DeviceNumber deviceNumber
+			, uint8_t msgType = 0, uint8_t msgCable = 0, uint8_t msgChannel = 0, uint8_t msgData1 = 0, uint8_t msgData2 = 0);
+
+		static bool remove();
+		static bool hasMoreWork();
+
 		static Defs::DeviceNumber getNextMsgDeviceNum();
 		static Defs::MidiMessageData* getNextMsgMidiData();
 	};
-	//---------------  DeviceMessageQueue    -------  END CLASS ------------
+	//---------------  MidiMsgQueue    -------  END CLASS ------------
+
 
 	//---------------  DeviceManager     ------------
 	class DeviceManager {

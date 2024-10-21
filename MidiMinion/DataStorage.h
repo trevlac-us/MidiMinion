@@ -207,7 +207,7 @@ class DataStorage {
 
 		}// end function dumpDescriptors
 		void dumpDeviceInfoSummary() {
-			Defs::DeviceInfoSummary_t* deviceInfoSum = getDeviceSummaryInfo();
+			const Defs::DeviceInfoSummary_t* deviceInfoSum = getDeviceSummaryInfo();
 			if (deviceInfoSum == nullptr) {
 				xERR::println("ERROR - Device Info Summary is empty");
 			}
@@ -217,13 +217,6 @@ class DataStorage {
 			return;
 		}
 		
-		Defs::DeviceInfoSummary_t* getDeviceSummaryInfo() {
-			if (deviceInfoSummary.deviceReady) {
-				if (deviceInfoSummary.USBvendorID == 0) { buildDeviceSummaryInfo(); }
-				return &deviceInfoSummary;
-			}
-			return nullptr;
-		}
 		void buildDeviceSummaryInfo() {
 			memset(&deviceInfoSummary, 0, sizeof(deviceInfoSummary));
 			void* dPtr;
@@ -467,6 +460,14 @@ class DataStorage {
 
 		} // END Function
 
+		public:
+		const Defs::DeviceInfoSummary_t* getDeviceSummaryInfo() {
+			if (deviceInfoSummary.deviceReady) {
+				if (deviceInfoSummary.USBvendorID == 0) { buildDeviceSummaryInfo(); }
+				return &deviceInfoSummary;
+			}
+			return nullptr;
+		}
 
 		friend class USBMidiDriver;
 		friend class DescriptorHelper;

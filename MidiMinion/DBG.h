@@ -158,7 +158,7 @@ public:
 
 	}
 
-	static void printDeviceInfoSummary(Defs::DeviceInfoSummary_t* pSumStruct) {
+	static void printDeviceInfoSummary(const Defs::DeviceInfoSummary_t* pSumStruct) {
 		DBG::println("****** Device Summary ******");
 		DBG::println("   USB-IF Vendor ID:   ", pSumStruct->USBvendorID);
 		DBG::print(  "   USB Version:        ", pSumStruct->USBMajorVersion); 
