@@ -8,7 +8,7 @@
 // -----------  MidiMinion CLASS DEF -----------
 class MidiMinion {
 public: 
-    static const bool PrintClassDEBUG = true;
+    static const bool PrintClassDEBUG = false;
     static const bool PrintClassERROR = true;
 
     // - States
@@ -46,18 +46,17 @@ void loop() {
         }
     
         // ALWAYS remove the msg to not stall the Q
-        if (DeviceEventQueue::getNextEventType() != Defs::DeviceEventType::EmptyQueue) {DeviceEventQueue::remove(); }
+       // if (DeviceEventQueue::getNextEventType() != Defs::DeviceEventType::EmptyQueue) {DeviceEventQueue::remove(); }
 
         DeviceManager::task(); // -- Not sure devices use this
 
-        // --- Give DeviceQ Priority and loop again
-        if (DeviceEventQueue::hasMoreWork()) return;
     // ***** End PROCESS DEVICE EVENTS ***********************
 
 
 
+
     // ************ PROCESS MIDI MESSAGE  ****************
-        while(MidiMsgQueue::hasMoreWork()) { 
+        while(!MidiMsgQueue::isEmpty()) {
 
             //TODO:  Run Transformers which load UI Q
             //    { Off, Reading, Routing, Writing };
@@ -66,9 +65,14 @@ void loop() {
         }
     // ********** END PROCESS MIDI MESSAGE  **************
 
-    
 
-    // TODO:  Process UI Messages
+
+    
+    // ************ Process UI MESSAGE  ****************
+        UIMessageRouter::routeMessage(UIMessageQueue::remove());
+    // ********** END Process UI MESSAGE  **************
+
+
 
 
 } // ----------  ARDUINO LOOP END -----------------
@@ -90,14 +94,16 @@ void MidiMinion::starting() {
     }
 }
 void MidiMinion::disconnected() {
-    switch (DeviceEventQueue::getNextEventType())
+    Defs::DeviceEvent event = DeviceEventQueue::remove();
+    switch (event.eventType)
     {
         case Defs::DeviceEventType::EmptyQueue: { break; }
 
         case Defs::DeviceEventType::DeviceConnect: {
             // Add msg to UI Q ...change mode
-            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, DeviceEventQueue::getNextEventDataPtr());
+            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, event.dataPtr);
             MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Connected;
+            
             break;
         }
         case Defs::DeviceEventType::DeviceDisconnect: {
@@ -115,12 +121,13 @@ void MidiMinion::disconnected() {
     }
 }
 void MidiMinion::connected() {
-    switch (DeviceEventQueue::getNextEventType())
+    Defs::DeviceEvent event = DeviceEventQueue::remove();
+    switch (event.eventType)
     {
         case Defs::DeviceEventType::EmptyQueue: { break; }
 
         case Defs::DeviceEventType::DeviceDisconnect: {
-            UIMessageQueue::add(Defs::UIMessageType::DeviceDisconnect, DeviceEventQueue::getNextEventDataPtr());
+            UIMessageQueue::add(Defs::UIMessageType::DeviceDisconnect, event.dataPtr);
             if (!DeviceManager::aDeviceIsReady()) {
                 MidiMinion::deviceMode = MidiMinion::DEVICEMODE::Disconnected;
             }
@@ -128,7 +135,7 @@ void MidiMinion::connected() {
         }
 
         case Defs::DeviceEventType::DeviceConnect: {
-            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, DeviceEventQueue::getNextEventDataPtr());
+            UIMessageQueue::add(Defs::UIMessageType::DeviceConnect, event.dataPtr);
             break;
         }
 

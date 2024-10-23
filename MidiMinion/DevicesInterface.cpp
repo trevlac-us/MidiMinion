@@ -33,19 +33,19 @@ void DeviceManager::readMidiMessages() {
 void DeviceManager::USBMidiDriverNotifications(USBMidiDriver* caller, Defs::DeviceEventType notificationType) {
 	
 	Defs::DeviceNumber deviceNumber = Defs::DeviceNumber::ERROR;
-	DataStorage::USBMidiDriverData* dataPtr;
+	const Defs::DeviceInfoSummary_t* dataPtr;
 
 	if (caller == &usbMidiDevice1) {
 		deviceNumber = Defs::DeviceNumber::USB1; 
-		dataPtr = &usbMidiDevice1Data;
+		dataPtr = usbMidiDevice1Data.getDeviceSummaryInfo();
 	}
 	//if (caller == &usbMidiDevice2) { deviceNumber = DeviceNumber::USB2; }
 	//if (caller == &usbMidiDevice3) { deviceNumber = DeviceNumber::USB3; }
 	//if (caller == &usbMidiDevice4) { deviceNumber = DeviceNumber::USB4; }
 	//if (caller == &midiDevice1) { deviceNumber = DeviceNumber::MIDI1; }
+	xDBG::println("DriverNotifications - Type:", (uint8_t)notificationType);
 
-	DeviceEventQueue::add( deviceNumber, notificationType, dataPtr);
-
+	DeviceEventQueue::add( deviceNumber, notificationType, reinterpret_cast<const void*>(dataPtr));
 
 }
 bool DeviceManager::isDeviceReady(Defs::DeviceNumber deviceNumber) {
@@ -75,7 +75,8 @@ bool DeviceManager::aDeviceIsReady() {
 
 //---------------  Device Event Queue  -----------------
 
-bool DeviceEventQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, void* dataPtr) {
+bool DeviceEventQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, const void* dataPtr) {
+	xDBG::println("Device EventQ Add Type=", (uint8_t) type);
 	bool rtn = false;
 	__disable_irq();
 
@@ -100,14 +101,17 @@ bool DeviceEventQueue::add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventTyp
 	return rtn;
 }
 
-bool DeviceEventQueue::remove() {
-	bool rtn = false;
+Defs::DeviceEvent DeviceEventQueue::remove() {
+	
+	Defs::DeviceEvent rtn = { .deviceNumber = Defs::DeviceNumber::ERROR
+								,.eventType = Defs::DeviceEventType::EmptyQueue
+								,.dataPtr = nullptr };
 	__disable_irq();
 	if (Qsize > 0) {
+		rtn = queueStorage[nextInQ];
 		Qsize--;
 		//bump up nextInQ ... loop around to 0 if at end of storage
 		nextInQ = (nextInQ + 1 == storageSize) ? 0 : nextInQ + 1;
-		rtn = true;
 	}
 	__enable_irq();
 	return rtn;
@@ -119,11 +123,11 @@ bool DeviceEventQueue::hasMoreWork() {
 	return true;
 }
 
-Defs::DeviceEventType DeviceEventQueue::getNextEventType() { return (!(Qsize)) ? Defs::DeviceEventType::EmptyQueue : queueStorage[nextInQ].eventType; }
-Defs::DeviceNumber DeviceEventQueue::getNextEventDeviceNum() { return (!(Qsize)) ? Defs::DeviceNumber::ERROR : queueStorage[nextInQ].deviceNumber; }
-void* DeviceEventQueue::getNextEventDataPtr() { return (!(Qsize)) ? nullptr : queueStorage[nextInQ].dataPtr; }
+Defs::DeviceEventType DeviceEventQueue::peekEventType() { return (!(Qsize)) ? Defs::DeviceEventType::EmptyQueue : queueStorage[nextInQ].eventType; }
 
 //---------------  Device Event Queue END  -----------
+
+
 
 
 //---------------  Midi Message Queue  -----------------
@@ -155,24 +159,20 @@ bool MidiMsgQueue::add(Defs::DeviceNumber deviceNumber
 	return rtn;
 }
 
-bool MidiMsgQueue::remove() {
-	bool rtn = false;
+Defs::MidiMessage MidiMsgQueue::remove() {
+	Defs::MidiMessage rtn = { .deviceNumber = Defs::DeviceNumber::ERROR };
+
 	if (Qsize > 0) {
+		rtn = queueStorage[nextInQ];
 		Qsize--;
 		//bump up nextInQ ... loop around to 0 if at end of storage
 		nextInQ = (nextInQ + 1 == storageSize) ? 0 : nextInQ + 1;
-		rtn = true;
 	}
 	return rtn;
 }
-bool MidiMsgQueue::hasMoreWork() {
-	if (Qsize <= 0 || countUntilYield <= 0) { countUntilYield = processBeforeYield; return false; }
-
-	countUntilYield--;
-	return true;
-}
+bool MidiMsgQueue::isEmpty() {return (Qsize <= 0 );}
 
 Defs::DeviceNumber MidiMsgQueue::getNextMsgDeviceNum() { return (!(Qsize)) ? Defs::DeviceNumber::ERROR : queueStorage[nextInQ].deviceNumber; }
-Defs::MidiMessageData* MidiMsgQueue::getNextMsgMidiData() { return (!(Qsize)) ? nullptr : &(queueStorage[nextInQ].midiMsg); }
+uint8_t MidiMsgQueue::peekMidiMsgType() { return (!(Qsize)) ? 0 : queueStorage[nextInQ].midiMsg.type; }
 
 //---------------  Device Event Queue END  -----------

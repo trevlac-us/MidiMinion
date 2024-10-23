@@ -3,9 +3,9 @@
 
 //---------------  UI Message Queue  -----------------
 
-bool UIMessageQueue::add(Defs::UIMessageType msgType, void* dataPtr) {
+bool UIMessageQueue::add(Defs::UIMessageType msgType, const void* dataPtr) {
 	bool rtn = false;
-
+	xDBG::println("UI Q - Add - Type=", (uint8_t)msgType);
 	if (Qsize < storageSize) {
 
 		queueStorage[nextOpenSpot].msgType = msgType;
@@ -24,16 +24,49 @@ bool UIMessageQueue::add(Defs::UIMessageType msgType, void* dataPtr) {
 	}
 	return rtn;
 }
-bool UIMessageQueue::remove() {
-	bool rtn = false;
+Defs::UIMessage UIMessageQueue::remove() {
+
+	Defs::UIMessage rtn = {.msgType = Defs::UIMessageType::EmptyQueue, .dataPtr = nullptr };
 	if (Qsize > 0) {
+		rtn = queueStorage[nextInQ];
 		Qsize--;
 		//bump up nextInQ ... loop around to 0 if at end of storage
 		nextInQ = (nextInQ + 1 == storageSize) ? 0 : nextInQ + 1;
-		rtn = true;
 	}
 	return rtn;
 }
 
-Defs::UIMessageType UIMessageQueue::getNextMsgType() { return (!(Qsize)) ? Defs::UIMessageType::EmptyQueue : queueStorage[nextInQ].msgType; }
-void* UIMessageQueue::getNextMsgDataPtr() { return (!(Qsize)) ? nullptr : queueStorage[nextInQ].dataPtr; }
+Defs::UIMessageType UIMessageQueue::peekMsgType() { return (!(Qsize)) ? Defs::UIMessageType::EmptyQueue : queueStorage[nextInQ].msgType; }
+
+
+
+UIPrintHandler UIMessageRouter::handler;
+
+void UIPrintHandler::deviceConnect(const Defs::DeviceInfoSummary_t* pDeviceInfoSumStruct) {
+	if (pDeviceInfoSumStruct == nullptr) {
+		xDBG::println("Device Connected");
+		return;
+	}
+		uint8_t idx = pDeviceInfoSumStruct->productStringIndex;
+	if (idx == 0) {
+		xDBG::println("Device Connected - USBVendorID = ",pDeviceInfoSumStruct->USBvendorID);
+	}
+	else {
+		xDBG::println("Device Connected - ", (const char*)pDeviceInfoSumStruct->iStrings[idx]);
+	}
+}
+void UIPrintHandler::deviceDisconnect(const Defs::DeviceInfoSummary_t* pDeviceInfoSumStruct) {
+	if (pDeviceInfoSumStruct == nullptr) {
+		xDBG::println("Device Disconnected");
+		return;
+	}
+	uint8_t idx = pDeviceInfoSumStruct->productStringIndex;
+	if (idx == 0) {
+		xDBG::println("Device Disconnected - USBVendorID = ", pDeviceInfoSumStruct->USBvendorID);
+	}
+	else {
+		xDBG::println("Device Disconnected - ", (const char*)pDeviceInfoSumStruct->iStrings[idx]);
+	}
+}
+
+

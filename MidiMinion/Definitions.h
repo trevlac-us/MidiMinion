@@ -76,13 +76,13 @@ namespace Defs {
 	enum class DeviceNumber { ERROR, USB1, USB2, USB3, USB4, MIDI1 };
 
 
-	typedef struct DeviceEvent_struct { Defs::DeviceNumber deviceNumber; Defs::DeviceEventType eventType; void* dataPtr; } DeviceEvent;
+	typedef struct DeviceEvent_struct { Defs::DeviceNumber deviceNumber; Defs::DeviceEventType eventType; const void* dataPtr; } DeviceEvent;
 	typedef struct MidiMessage_struct { Defs::DeviceNumber deviceNumber; Defs::MidiMessageData midiMsg; } MidiMessage;
 
 	// ---- UIMessageQueue ---
 
 	enum class UIMessageType { ERROR, EmptyQueue, DeviceConnect, DeviceDisconnect };
-	typedef struct UIMessage_struct { Defs::UIMessageType msgType; void* dataPtr; } UIMessage;
+	typedef struct UIMessage_struct { Defs::UIMessageType msgType; const void* dataPtr; } UIMessage;
 
 };
 

@@ -8,6 +8,9 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 	//---------------  DeviceEventQueue     ------------
 	class DeviceEventQueue {
 	private:
+		static const bool PrintClassDEBUG = false;
+		static const bool PrintClassERROR = true;
+
 		static inline Defs::DeviceEvent queueStorage[10]={};
 		static const uint8_t storageSize = sizeof(queueStorage) / sizeof(queueStorage[0]);
 		static inline volatile uint8_t Qsize = 0;
@@ -17,14 +20,12 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 		static inline volatile uint8_t countUntilYield = processBeforeYield;
 
 	public:
-		static bool add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, void* dataPtr);
+		static bool add(Defs::DeviceNumber deviceNumber, Defs::DeviceEventType type, const void* dataPtr);
 
-		static bool remove();
+		static Defs::DeviceEvent remove();
 		static bool hasMoreWork();
 
-		static Defs::DeviceEventType getNextEventType();
-		static Defs::DeviceNumber getNextEventDeviceNum();
-		static void* getNextEventDataPtr();
+		static Defs::DeviceEventType peekEventType();
 	};
 	//---------------  DeviceEventQueue    -------  END CLASS ------------
 
@@ -32,6 +33,9 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 	//---------------  MidiMsgQueue     ------------
 	class MidiMsgQueue {
 	private:
+		static const bool PrintClassDEBUG = false;
+		static const bool PrintClassERROR = true;
+
 		static inline Defs::MidiMessage queueStorage[20] = {};
 		static const uint8_t storageSize = sizeof(queueStorage) / sizeof(queueStorage[0]);
 		static inline volatile uint8_t Qsize = 0;
@@ -44,11 +48,11 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 		static bool add(Defs::DeviceNumber deviceNumber
 			, uint8_t msgType = 0, uint8_t msgCable = 0, uint8_t msgChannel = 0, uint8_t msgData1 = 0, uint8_t msgData2 = 0);
 
-		static bool remove();
-		static bool hasMoreWork();
+		static Defs::MidiMessage remove();
+		static bool isEmpty();
 
 		static Defs::DeviceNumber getNextMsgDeviceNum();
-		static Defs::MidiMessageData* getNextMsgMidiData();
+		static uint8_t peekMidiMsgType();    
 	};
 	//---------------  MidiMsgQueue    -------  END CLASS ------------
 
@@ -57,7 +61,7 @@ class USBMidiDriver;	//-- DeviceManager needed for Declare & device callback
 	class DeviceManager {
 
 	private:
-		static const bool PrintClassDEBUG = true;
+		static const bool PrintClassDEBUG = false;
 		static const bool PrintClassERROR = true;
 
 		static DataStorage::USBMidiDriverData usbMidiDevice1Data;

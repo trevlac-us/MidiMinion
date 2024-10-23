@@ -7,7 +7,7 @@ class DataStorage {
 
 	 class USBMidiDriverData {
 	 private:
-		 static const bool PrintClassDEBUG = true;
+		 static const bool PrintClassDEBUG = false;
 		 static const bool PrintClassERROR = true;
 
 	//---------------  USBMidiDriver    -------  DATA STOARGE START ------------
@@ -105,6 +105,8 @@ class DataStorage {
 
 
 		void init() {
+			xDBG::println("MidiDriver DATA Init");
+
 
 			deviceInfoSummary.deviceReady = false;
 
@@ -462,11 +464,8 @@ class DataStorage {
 
 		public:
 		const Defs::DeviceInfoSummary_t* getDeviceSummaryInfo() {
-			if (deviceInfoSummary.deviceReady) {
-				if (deviceInfoSummary.USBvendorID == 0) { buildDeviceSummaryInfo(); }
-				return &deviceInfoSummary;
-			}
-			return nullptr;
+			if (deviceInfoSummary.USBvendorID == 0) { buildDeviceSummaryInfo(); }
+			return &deviceInfoSummary;
 		}
 
 		friend class USBMidiDriver;
